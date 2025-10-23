@@ -7,7 +7,7 @@ import psycopg2
 
 def openConnection():
     # connection parameters - ENTER YOUR LOGIN AND PASSWORD HERE
-    userid = "y25s2c9120_unikey"
+    userid = ""
     passwd = ""
     myHost = "awsprddbs4836.shared.sydney.edu.au"
 
@@ -26,64 +26,260 @@ def openConnection():
     
     # return the connection to use
     
-'''
-Validate user login credentials against the database
-Login comparison is case insensitive, password comparison is case sensitive
-Parameters:
-    login: login ID
-    password: User password
-Returns:
-    [login, firstName, lastName, role] if valid, None if invalid
-'''
 def checkLogin(login, password):
-   
-    return ['jdoe', 'John', 'Doe' , 'Customer']
+    '''
+    Validate user login credentials against the database.
+    Login comparison is case insensitive, password comparison is case sensitive.
 
-"""
-Retrieve all tracks from the database with associated artist information and average ratings
-Returns:
-    List of dictionaries containing track information:
-        - trackid: Track ID
-        - title: Track title
-        - duration: Track duration
-        - age_restriction: Boolean indicating if track has age restrictions
-        - singer_name: Full name of the singer
-        - composer_name: Full name of the composer
-        - avg_rating: Average rating from all reviews (0 if no reviews)
-"""
-def list_tracks(): 
+    Parameters:
+        login: login ID
+        password: user password
+
+    Returns:
+        [login, firstName, lastName, role] if valid, None if invalid
+    '''
+    conn = None
+    try:
+        conn = openConnection()
+        if conn is None:
+            print("Could not connect to database.")
+            return None
+
+        cur = conn.cursor()
+
+        query = """
+            SELECT 
+                login,
+                firstname,
+                lastname,
+                role
+            FROM Account
+            WHERE LOWER(login) = LOWER(%s)
+              AND PASSWORD = %s;
+        """
+
+        cur.execute(query, (login, password))
+        userInfo = cur.fetchone()
+
+        cur.close()
+        conn.close()
+
+        # Return user details if found
+        if userInfo:
+            return list(userInfo)
+        else:
+            return None
+
+    except Exception as e:
+        print("Database error:", e)
+        if conn:
+            conn.close()
+        return None
+
+# """
+# Retrieve all tracks from the database with associated artist information and average ratings
+# Returns:
+#     List of dictionaries containing track information:
+#         - trackid: Track ID
+#         - title: Track title
+#         - duration: Track duration
+#         - age_restriction: Boolean indicating if track has age restrictions
+#         - singer_name: Full name of the singer
+#         - composer_name: Full name of the composer
+#         - avg_rating: Average rating from all reviews (0 if no reviews)
+# """
+# def list_tracks(): 
     
-    return None
+#     return None
 
-"""
-Retrieve all users from the database
-Returns:
-    List of dictionaries containing user information:
-        - login: User login ID
-        - firstname: User's first name
-        - lastname: User's last name
-        - email: User's email address
-        - role: User's role (Customer, Artist, Staff)
-"""
-def list_users(): 
-   
-    return None
+def list_tracks():
+    '''
+    Retrieve all tracks from the database with associated artist information and average ratings.
+    Returns:
+        List of dictionaries containing:
+        - trackid
+        - title
+        - duration
+        - age_restriction
+        - singer_name
+        - composer_name
+        - avg_rating
+    '''
+    conn = None
+    try:
+        conn = openConnection()
+        cur = conn.cursor()
 
-"""
-Retrieve all reviews from the database with associated track and customer information
-Returns:
-    List of dictionaries containing review information:
-        - reviewid: Review ID
-        - track_title: Title of the reviewed track
-        - rating: Review rating (1-5)
-        - content: Review content text
-        - customer_login: Login ID of the reviewer
-        - customer_name: Full name of the reviewer
-        - review_date: Date when the review was written
-"""
-def list_reviews(): 
-    
-    return None
+        query = """
+            SELECT 
+                t.id AS trackid,
+                t.title,
+                t.duration,
+                t.age_restriction,
+
+                -- Singer full name
+                CASE 
+                    WHEN sa.firstname IS NULL AND sa.lastname IS NULL THEN 'N/A'
+                    ELSE sa.firstname || ' ' || sa.lastname
+                END AS singer_name,
+
+                -- Composer full name 
+                CASE 
+                    WHEN ca.firstname IS NULL AND ca.lastname IS NULL THEN 'N/A'
+                    ELSE ca.firstname || ' ' || ca.lastname
+                END AS composer_name,
+
+                -- Average rating (0 if NULL)
+                CASE 
+                    WHEN AVG(r.rating) IS NULL THEN 0
+                    ELSE ROUND(AVG(r.rating), 2)
+                END AS avg_rating
+
+            FROM Track t
+                LEFT JOIN Account sa ON t.singer = sa.login
+                LEFT JOIN Account ca ON t.composer = ca.login
+                LEFT JOIN Review r ON t.id = r.trackID
+            GROUP BY 
+                t.id, t.title, t.duration, t.age_restriction,
+                sa.firstname, sa.lastname,
+                ca.firstname, ca.lastname
+            ORDER BY t.id;
+        """
+
+        cur.execute(query)
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+
+        # Transform SQL rows into dictionaries
+        results = []
+        for row in rows:
+            results.append({
+                'trackid': row[0],
+                'title': row[1],
+                'duration': row[2],
+                'age_restriction': row[3],
+                'singer_name': row[4],
+                'composer_name': row[5],
+                'avg_rating': float(row[6])
+            })
+        return results
+
+    except Exception as e:
+        print("Database error:", e)
+        if conn:
+            conn.close()
+        return None
+
+def list_users():
+    '''
+    Retrieve all users from the database.
+    Returns:
+        List of dictionaries containing:
+            - login
+            - firstname
+            - lastname
+            - email
+            - role
+    '''
+    conn = None
+    try:
+        conn = openConnection()
+        cur = conn.cursor()
+
+        query = """
+            SELECT 
+                login,
+                firstname,
+                lastname,
+                email,
+                role
+            FROM Account
+            ORDER BY role, firstname, lastname;
+        """
+
+        cur.execute(query)
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+
+        # Transform SQL rows into dictionaries (simple output formatting)
+        results = []
+        for row in rows:
+            results.append({
+                'login': row[0],
+                'firstname': row[1],
+                'lastname': row[2],
+                'email': row[3],
+                'role': row[4]
+            })
+        return results
+
+    except Exception as e:
+        print("Database error:", e)
+        if conn:
+            conn.close()
+        return None
+
+
+def list_reviews():
+    '''
+    Retrieve all reviews from the database with associated track and customer information.
+    Returns:
+        List of dictionaries containing:
+            - reviewid
+            - track_title
+            - rating
+            - content
+            - customer_login
+            - customer_name
+            - review_date
+    '''
+    conn = None
+    try:
+        conn = openConnection()
+        cur = conn.cursor()
+
+        query = """
+            SELECT 
+                r.reviewID AS reviewid,
+                t.title AS track_title,
+                r.rating,
+                r.content,
+                r.customerID AS customer_login,
+                (a.firstname || ' ' || a.lastname) AS customer_name,
+                r.reviewDate
+            FROM Review r
+                JOIN Track t ON r.trackID = t.id
+                JOIN Account a ON r.customerID = a.login
+            ORDER BY r.reviewDate DESC, r.reviewID;
+        """
+
+        cur.execute(query)
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+
+        # Convert tuples → dictionaries (allowed minimal formatting)
+        results = []
+        for row in rows:
+            results.append({
+                'reviewid': row[0],
+                'track_title': row[1],
+                'rating': row[2],
+                'content': row[3],
+                'customer_login': row[4],
+                'customer_name': row[5],
+                'review_date': row[6]
+            })
+        return results
+
+    except Exception as e:
+        print("Database error:", e)
+        if conn:
+            conn.close()
+        return None
+
 
 """
 Search for tracks based on a search string
