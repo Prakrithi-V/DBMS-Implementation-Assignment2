@@ -7,8 +7,8 @@ import psycopg2
 
 def openConnection():
     # connection parameters - ENTER YOUR LOGIN AND PASSWORD HERE
-    userid = ""
-    passwd = ""
+    userid = "y25s2c9120_pvad0040"
+    passwd = "hJZ69UKL"
     myHost = "awsprddbs4836.shared.sydney.edu.au"
 
     # Create a connection to the database
@@ -195,7 +195,7 @@ def list_users():
                 email,
                 role
             FROM Account
-            ORDER BY role, firstname, lastname;
+            ORDER BY role, login;
         """
 
         cur.execute(query)
@@ -248,7 +248,7 @@ def list_reviews():
                 r.content,
                 r.customerID AS customer_login,
                 (a.firstname || ' ' || a.lastname) AS customer_name,
-                r.reviewDate
+                TO_CHAR(r.reviewDate, 'DD-MM-YYYY') AS reviewDate
             FROM Review r
                 JOIN Track t ON r.trackID = t.id
                 JOIN Account a ON r.customerID = a.login
@@ -327,8 +327,24 @@ Returns:
     True if review added successfully, False if error occurred
 """
 def add_review(trackid, rating, customer_login, content, review_date):
-   
-    return True
+    conn = None
+    try:
+        conn = openConnection()
+        cur = conn.cursor()
+        cur.execute("""
+            CALL add_review_proc(%s, %s, %s, %s, %s);
+        """, (trackid, rating, customer_login, content, review_date))
+        conn.commit()
+        cur.close()
+        conn.close()
+        return True
+    except Exception as e:
+        print("Error adding review:", e)
+        if conn:
+            conn.rollback()
+        return False
+
+
 
 """
 Update an existing track in the database
@@ -357,8 +373,23 @@ Returns:
     True if review updated successfully, False if error occurred
 """
 def update_review(reviewid, rating, content):
+    conn = None
+    try:
+        conn = openConnection()
+        cur = conn.cursor()
+        cur.execute("""
+            CALL update_review_proc(%s, %s, %s);
+        """, (reviewid, rating, content))
+        conn.commit()
+        cur.close()
+        conn.close()
+        return True
+    except Exception as e:
+        print("Error updating review:", e)
+        if conn:
+            conn.rollback()
+        return False
 
-    return True
 
 """
 Update an existing user in the database
