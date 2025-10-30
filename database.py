@@ -7,8 +7,8 @@ import psycopg2
 
 def openConnection():
     # connection parameters - ENTER YOUR LOGIN AND PASSWORD HERE
-    userid = ""
-    passwd = ""
+    userid = "y25s2c9120_pupp0621"
+    passwd = "Welcome2holla"
     myHost = "awsprddbs4836.shared.sydney.edu.au"
 
     # Create a connection to the database
@@ -312,8 +312,28 @@ Returns:
     True if user added successfully, False if error occurred
 """
 def add_user(login, firstname, lastname, password, email, role):
+    """
+    Add a new user to the database using stored procedure add_user_proc().
+    """
+    default_password = password if password else 'default123'
+    conn = openConnection()
+    if conn is None:
+        return False
 
-    return True
+    cur = conn.cursor()
+    try:
+        # Call the stored procedure with all six parameters
+        cur.execute("CALL add_user_proc(%s, %s, %s, %s, %s, %s);",
+                    (login, firstname, lastname, email, default_password, role))
+        conn.commit()
+        return True
+    except psycopg2.Error as e:
+        print("Database error in add_user:", e)
+        conn.rollback()
+        return False
+    finally:
+        cur.close()
+        conn.close()
 
 """
 Add a new review to the database
@@ -370,7 +390,25 @@ Parameters:
 Returns:
     True if user updated successfully, False if error occurred
 """
-def update_user(user_login, firstname, lastname ,email ):
+def update_user(user_login, firstname, lastname, email):
+    '''
+    Update user details using stored procedure update_user_proc().
+    '''
+    conn = openConnection()
+    if conn is None:
+        return False
 
-    return True
+    cur = conn.cursor()
+    try:
+        cur.execute("CALL update_user_proc(%s, %s, %s, %s);",
+                    (user_login, firstname, lastname, email))
+        conn.commit()
+        return True
+    except psycopg2.Error as e:
+        print("Database error in update_user:", e)
+        conn.rollback()
+        return False
+    finally:
+        cur.close()
+        conn.close()
 
