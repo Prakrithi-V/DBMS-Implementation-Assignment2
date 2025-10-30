@@ -208,3 +208,66 @@ BEGIN
     RAISE NOTICE 'Review ID % updated successfully on %', p_reviewid, CURRENT_DATE;
 END;
 $$;
+
+----------------------------------------------------------
+-- Stored Procedures for User Management
+----------------------------------------------------------
+
+CREATE OR REPLACE PROCEDURE add_user_proc(
+    p_login       VARCHAR,
+    p_firstname   VARCHAR,
+    p_lastname    VARCHAR,
+    p_email       VARCHAR,
+    p_password    VARCHAR,
+    p_role        VARCHAR
+)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    -- Ensure valid role
+    IF p_role NOT IN ('Customer', 'Staff', 'Artist') THEN
+        RAISE EXCEPTION 'Invalid role: %, must be Customer, Staff, or Artist.', p_role;
+    END IF;
+
+    -- Lowercase login
+    p_login := LOWER(TRIM(p_login));
+
+    -- Prevent duplicates
+    IF EXISTS (SELECT 1 FROM Account WHERE login = p_login) THEN
+        RAISE EXCEPTION 'Login "%" already exists.', p_login;
+    END IF;
+
+    -- Insert account
+    INSERT INTO Account (login, firstname, lastname, email, password, role)
+    VALUES (p_login, p_firstname, p_lastname, p_email, p_password, p_role);
+
+    -- Add to subtype
+    IF p_role = 'Customer' THEN
+        INSERT INTO Customer (login) VALUES (p_login);
+    ELSIF p_role = 'Artist' THEN
+        INSERT INTO Artist (login) VALUES (p_login);
+    END IF;
+END;
+$$;
+
+
+CREATE OR REPLACE PROCEDURE update_user_proc(
+    p_login       VARCHAR,
+    p_firstname   VARCHAR,
+    p_lastname    VARCHAR,
+    p_email       VARCHAR
+)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    UPDATE Account
+       SET firstname = p_firstname,
+           lastname  = p_lastname,
+           email     = p_email
+     WHERE LOWER(login) = LOWER(TRIM(p_login));
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'User with login "%" not found.', p_login;
+    END IF;
+END;
+$$;
