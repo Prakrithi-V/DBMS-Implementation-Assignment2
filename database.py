@@ -76,22 +76,6 @@ def checkLogin(login, password):
             conn.close()
         return None
 
-# """
-# Retrieve all tracks from the database with associated artist information and average ratings
-# Returns:
-#     List of dictionaries containing track information:
-#         - trackid: Track ID
-#         - title: Track title
-#         - duration: Track duration
-#         - age_restriction: Boolean indicating if track has age restrictions
-#         - singer_name: Full name of the singer
-#         - composer_name: Full name of the composer
-#         - avg_rating: Average rating from all reviews (0 if no reviews)
-# """
-# def list_tracks(): 
-    
-#     return None
-
 def list_tracks():
     '''
     Retrieve all tracks from the database with associated artist information and average ratings.

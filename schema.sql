@@ -196,13 +196,12 @@ BEGIN
         RAISE EXCEPTION 'Rating must be between 1 and 5. Given: %', p_rating;
     END IF;
 
-    --  Update the review (set new rating/content and refresh reviewDate)
+    -- Update only rating/content; keep original reviewdate
     UPDATE review
-    SET
-        rating = p_rating,
-        content = p_content,
-        reviewdate = CURRENT_DATE
-    WHERE reviewid = p_reviewid;
+       SET rating      = p_rating,
+           content     = p_content
+           
+     WHERE reviewid = p_reviewid;
 
     -- Confirm successful update
     RAISE NOTICE 'Review ID % updated successfully on %', p_reviewid, CURRENT_DATE;
