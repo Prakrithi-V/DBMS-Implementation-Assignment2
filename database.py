@@ -7,8 +7,8 @@ import psycopg2
 
 def openConnection():
     # connection parameters - ENTER YOUR LOGIN AND PASSWORD HERE
-    userid = "y25s2c9120_pvad0040"
-    passwd = "hJZ69UKL"
+    userid = ""
+    passwd = ""
     myHost = "awsprddbs4836.shared.sydney.edu.au"
 
     # Create a connection to the database
@@ -296,8 +296,77 @@ Returns:
         - avg_rating: Average rating from all reviews (0 if no reviews)
 """
 def find_tracks(searchString):
-    
-    return None
+    conn = None
+    results = []
+    try:
+        conn = openConnection()
+        cur = conn.cursor()
+
+        # If searchString is empty, fetch all tracks
+        if not searchString or searchString.strip() == "":
+            query = """
+                SELECT
+                    t.id,
+                    t.title,
+                    t.duration,
+                    t.age_restriction,
+                    CONCAT_WS(' ', c1.firstname, c1.lastname) AS composer_name,
+                    CONCAT_WS(' ', c2.firstname, c2.lastname) AS singer_name,
+                    COALESCE(ROUND(AVG(r.rating)::numeric, 2), 0) AS avg_rating
+                FROM Track t
+                    LEFT JOIN Artist a1 ON t.composer = a1.login
+                    LEFT JOIN Account c1 ON a1.login = c1.login
+                    LEFT JOIN Artist a2 ON t.singer = a2.login
+                    LEFT JOIN Account c2 ON a2.login = c2.login
+                    LEFT JOIN Review r ON t.id = r.trackID
+                GROUP BY t.id, c1.firstname, c1.lastname, c2.firstname, c2.lastname
+                ORDER BY avg_rating DESC, t.id ASC;
+            """
+            cur.execute(query)
+        else:
+            query = """
+                SELECT
+                    t.id,
+                    t.title,
+                    t.duration,
+                    t.age_restriction,
+                    CONCAT_WS(' ', c1.firstname, c1.lastname) AS composer_name,
+                    CONCAT_WS(' ', c2.firstname, c2.lastname) AS singer_name,
+                    COALESCE(ROUND(AVG(r.rating)::numeric, 2), 0) AS avg_rating
+                FROM Track t
+                    LEFT JOIN Artist a1 ON t.composer = a1.login
+                    LEFT JOIN Account c1 ON a1.login = c1.login
+                    LEFT JOIN Artist a2 ON t.singer = a2.login
+                    LEFT JOIN Account c2 ON a2.login = c2.login
+                    LEFT JOIN Review r ON t.id = r.trackID
+                WHERE LOWER(t.title) LIKE LOWER(%s)
+                GROUP BY t.id, c1.firstname, c1.lastname, c2.firstname, c2.lastname
+                ORDER BY avg_rating DESC, t.id ASC;
+            """
+            cur.execute(query, (f"%{searchString}%",))
+
+        rows = cur.fetchall()
+        for r in rows:
+            results.append({
+                'trackid': r[0],
+                'title': r[1],
+                'duration': r[2],
+                'age_restriction': r[3],
+                'composer_name': r[4],
+                'singer_name': r[5],
+                'avg_rating': float(r[6]) if r[6] is not None else 0
+            })
+
+        cur.close()
+        conn.close()
+        return results
+
+    except Exception as e:
+        print("Error in find_tracks:", e)
+        if conn:
+            conn.close()
+        return None
+
 
 """
 Add a new user to the database
@@ -347,6 +416,7 @@ Parameters:
 Returns:
     True if review added successfully, False if error occurred
 """
+# Maintained the restriction that 1 user can add at most 1 review per track
 def add_review(trackid, rating, customer_login, content, review_date):
     conn = None
     try:
@@ -380,8 +450,71 @@ Returns:
     True if track updated successfully, False if error occurred
 """
 def update_track(trackid, title, duration, age_restriction, singer_login, composer_login):
+    conn = None
+    try:
+        # Open a connection to the database
+        conn = openConnection()
+        if conn is None:
+            raise Exception("Failed to connect to the database")
 
-    return True
+        # Create a cursor to interact with the database
+        cur = conn.cursor()
+
+        # Prepare the SQL update query
+      
+        update_query = """
+            UPDATE Track
+            SET title = %s,
+                duration = %s,
+                age_restriction = %s,
+                singer = %s,
+                composer = %s
+            WHERE id = %s;
+        """
+
+        # Check if singer and composer logins exist (if not, we will set them to NULL)
+        if singer_login:
+            singer_exists_query = "SELECT login FROM Artist WHERE LOWER(login) = LOWER(%s);"
+            cur.execute(singer_exists_query, (singer_login,))
+            singer_exists = cur.fetchone()
+            if not singer_exists:
+                print(f"Invalid singer login: {singer_login}. Setting singer to NULL.")
+                singer_login = None  # Set to NULL if the login is invalid
+
+        if composer_login:
+            composer_exists_query = "SELECT login FROM Artist WHERE LOWER(login) = LOWER(%s);"
+            cur.execute(composer_exists_query, (composer_login,))
+            composer_exists = cur.fetchone()
+            if not composer_exists:
+                print(f"Invalid composer login: {composer_login}. Setting composer to NULL.")
+                composer_login = None  # Set to NULL if the login is invalid
+
+        # Execute the update query
+        cur.execute(update_query, (title, duration, age_restriction, singer_login, composer_login, trackid))
+
+        # Commit the transaction (save changes)
+        conn.commit()
+
+        # Check if any rows were affected (i.e., track updated)
+        if cur.rowcount == 0:
+            print(f"No track found with ID {trackid}.")
+            return False
+
+        print(f"Track {trackid} updated successfully!")
+
+        # Close the cursor and connection
+        cur.close()
+        conn.close()
+
+        return True
+
+    except Exception as e:
+        print(f"Error in update_track: {e}")
+        if conn:
+            conn.rollback()  # Rollback in case of error
+            conn.close()
+        return False
+
 
 """
 Update an existing review in the database
